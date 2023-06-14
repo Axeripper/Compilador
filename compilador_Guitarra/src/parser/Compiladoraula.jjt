@@ -1,0 +1,379 @@
+
+PARSER_BEGIN(compiladoraula)
+
+package parser;
+import recovery.*;
+
+public class compiladoraula
+{
+
+	public static void main(String args []) throws ParseException
+	{
+	   compiladoraula parser = new compiladoraula(System.in);//introduzir dados do teclado
+	   System.out.println("Compilador Guitarra");
+	   System.out.println("==========================");
+
+
+	   SimpleNode n = compiladoraula.main();
+	   n.dump("");
+	   try
+	   {
+	
+	   }
+	   catch(Error e)
+	   {
+	      System.out.println(e.getMessage());
+	      System.out.println("se encontrou erro");
+	   }
+	}
+	static public String im(int x)
+	{
+	    int k;
+		String s;
+	    s = tokenImage[x];
+	    k = s.lastIndexOf("\"");
+	    try {
+	      s = s.substring(1,k);
+	 }
+	 catch (StringIndexOutOfBoundsException e)
+		   {}
+	   return s;
+	 }
+		
+	 static Token lastError = null;
+	 static boolean eof;    // variável que indica se EOF foi alcançado
+		
+	 // o método abaixo consome tokens até alcançar um que pertença ao conjunto
+	 // de sincronização
+	 static void consumeUntil(RecoverySet g,
+		                 ParseException e,
+		                 String met) throws ParseEOFException,
+		                                    ParseException
+	 {
+		Token tok;
+		System.out.println();
+		System.out.println("*** " + met + " ***");
+		System.out.println("     Conjunto de sincronização: " + g);
+			
+		if (g == null) throw e; // se o conjunto é null, propaga a exceção
+		
+		tok = getToken(1); // pega token corrente
+		while ( ! eof )	{ // se não chegou ao fim do arquivo
+		  if ( g.contains(tok.kind)) {//achou um token no conjunto
+		    System.out.println("     Encontrado token de sincronização: " + 
+		                       im(tok.kind));
+		    break;
+		  }
+		  System.out.println("     Ignorando o token: " + im(tok.kind));
+		  getNextToken();     // pega próximo token       
+	      tok = getToken(1);
+		  if (tok.kind == EOF && ! g.contains(EOF) ) // fim da entrada?   
+		      eof = true;
+	  }
+	    if ( tok != lastError)  {
+		  System.out.println(e.getMessage());
+		  lastError = tok;
+	   
+	  }
+	  if ( eof )
+		  throw new ParseEOFException("Encontrei EOF onde não deveria.");
+	  }
+}
+PARSER_END(compiladoraula)
+
+
+SKIP :
+{
+  " "
+| "\r"
+| "\t"
+| "\n"
+| < COMENTARIO	: "//" (< COM >)* >
+| < COMENTARIOS	: "/*" ("\n" | "\r" | < COM >)* "*/" >
+| < #COM 		: ( ~["\"","\\","\n","\r"] | "\\" (["n","t","b","r","f","\\","\""] | (["\n","\r"] | "\r\n")))* >
+}
+
+TOKEN : //definição de palavras reservadas
+{
+  < INICIOPROGRAMA 	: "liga"      >
+| < PONTOVIRGULA 	: ";" 		  >
+| < ABRABLOCO 		: "abrir" 	  >
+| < FIMBLOCO 		: "desliga"   >
+| < TIPOINTEIRO 	: "nota"      >
+| < TIPOBINARIO		: "binario"   >
+| < TIPOFRASE 		: "sustenido" >
+| < TIPOREAL		: "maior"     >
+
+| < VAR 			: "var" 	  >
+| < ESCREVER 		: "cifra"     >
+| < LER				: "ler" 	  >
+
+| < SE				: "palheta"   >
+| < SENAO			: "dedeira"   >
+
+| < SELECIONA		: "cabo" 	  >
+| < CASO 			: "entrada"   >
+| < DEFAULTT 		: "cubo"      >
+| < BREAK			: "para"      >
+
+| < PARA			: "pestana"   >
+| < IN				: "entre" 	  >	
+| < SEGUINTE 		: "seguinte"  >
+
+| < FACA			: "capotraste">
+| < ENQUANTO		: "corda"     >
+
+}
+ 
+TOKEN : //area de operadores
+{
+  < SOMA		: "+" >
+| < SUBTRAIR	: "-" >
+| < MULTI 		: "*" >
+| < DIVI 		: "/" >
+| < MOD			: "%" >
+| < BRANCO 		: ["\n"]["\t"]["\r"] >
+
+| < MAIOR 		: ">" >
+| < MENOR		: "<" >
+| < IGUAL 		: "=" >
+
+| < AND			: "&&" >
+| < OU 			: "||" >
+| < NAO 		: "!"  >
+
+| < ABRECHAVES	:"(" >
+| < FECHAVES 	:")" >
+| < ABRE		:"{" >  
+| < FECHA		:"}" >
+
+
+| < PONTOS 		:":" >
+}
+
+
+TOKEN: { //TOKENS DINAMICOS
+
+  //< DECIMAL 	: (< NUMERO >)+ >
+  <	#NUMERO 	: [ "0"-"9" ] >
+| < #LETRA 		: ["A"-"Z"] | ["a"-"z"] >
+
+| < ID 			: (< LETRA >| "_")  (< LETRA > | < NUMERO >| "_")* >
+
+| < VALOR_INTEIRO	: (< NUMERO >)+ >
+| < VALOR_REAL		: (< NUMERO >)+ "." (< NUMERO >)+ >
+| < VALOR_CADEIA	: "\"" (~["\""])* "\"" >
+
+}	
+
+
+SimpleNode main() :
+{}
+{
+	<INICIOPROGRAMA> id()  <ABRE> 
+	  (
+  	  	  sentencas()
+	   )+
+	   
+	<FECHA>
+	{
+	  return jjtThis;
+	}
+}
+
+void id() : { }
+{
+  < ID >
+}
+
+void sentencas(): {}
+{
+  	declaracaoVariavel()
+|  	funcaoEscrever()
+|   funcaoLer()
+|   funcaoAtribuicao()
+|   funcaoSE()
+| 	funcaoSelecione()
+| 	funcaoPara()
+|  	funcaoEnquanto()
+| 	funcaoFaca()
+}
+
+void declaracaoVariavel() :
+{RecoverySet sincronizacao = First.declaracaoVariavel;}
+{
+	try
+	{ 
+		tipoDado() id() [< IGUAL > valor()]
+	}
+	catch (ParseException e)
+	{
+		consumeUntil(sincronizacao, e, "declaracaoVariavel");	
+	}
+
+}
+
+void tipoDado() : { }
+{
+  < TIPOINTEIRO > | < TIPOBINARIO > | < TIPOFRASE > | < TIPOREAL > 
+}
+
+void valor(): { }
+{
+  < VALOR_CADEIA > | < VALOR_INTEIRO > | < VALOR_REAL > | id()
+}
+
+
+void funcaoEscrever():
+{RecoverySet sincronizacao = First.funcaoEscrever;}
+{
+  	try
+  	{  
+   		< ESCREVER > <ABRECHAVES>valor()(<SOMA>valor())*<FECHAVES>
+  	}
+  	catch(ParseException e)
+  	{
+    	consumeUntil(sincronizacao, e, "funcaoEscrever");
+  	}
+}
+
+void funcaoLer ():
+{RecoverySet sincronizacao = First.funcaoLer;}
+{
+	try
+  	{ 
+  		< LER > <ABRECHAVES > id() <FECHAVES>
+  	}
+  	catch(ParseException e)
+  	{
+    	consumeUntil(sincronizacao, e, "funcaoLer");
+  	}
+}
+void funcaoAtribuicao ():
+{RecoverySet sincronizacao = First.funcaoAtribuicao;}
+{
+	try
+  	{  
+  		id() <IGUAL> operadorSimples()
+  	}
+  	catch(ParseException e)
+  	{
+  	  consumeUntil(sincronizacao, e, "funcaoAtribuicao");
+  	}
+}
+
+void operadorSimples(): { }
+{
+  ( valor() | operadorParenteses())
+  ( operadorAritmetico() (valor() | operadorParenteses()) )*
+}
+
+void operadorParenteses(): { }
+{
+  < ABRECHAVES > operadorSimples() <FECHAVES >
+}
+
+void operadorAritmetico(): { }
+{
+  < SOMA > | < SUBTRAIR > | < MULTI > | < DIVI > | < MOD >
+}
+
+void funcaoSE():
+{RecoverySet sincronizacao = First.funcaoSE;}
+{
+	try
+	{ 
+		  < SE > condicao() < PONTOS >
+		  ( sentencas())+
+		  [<SENAO >(sentencas()) + ] 
+		  < FIMBLOCO > 
+	}
+	catch(ParseException e)
+	{
+	  consumeUntil(sincronizacao, e, "funcaoSE");
+	} 
+}
+
+void condicao(): { }
+{
+  condicaoSimples() (opLogico() condicaoSimples())*
+}
+
+void condicaoSimples(): { }
+{
+  valor() opRelacional() valor()
+}
+
+void opLogico(): { }
+{
+  < AND > | < OU >
+}
+
+void opRelacional(): { }
+{
+  < MAIOR > [<IGUAL >] | < MENOR > [<IGUAL >] | < IGUAL > < IGUAL > | <  NAO > < IGUAL >
+}
+
+void funcaoSelecione():
+{RecoverySet sincronizacao = First.funcaoSelecione;}
+{
+	try
+	{ 
+		< SELECIONA > <ABRECHAVES > id() <FECHAVES >
+		  ( < CASO > <VALOR_INTEIRO> <PONTOS> sentencas() <BREAK> )+
+		  [ < DEFAULTT > <PONTOS> sentencas() <BREAK> ]
+		<FIMBLOCO> <SELECIONA>
+	}
+	catch(ParseException e)
+	{
+	  	consumeUntil(sincronizacao, e, "funcaoSelecione");
+	}
+}
+
+void funcaoPara() :
+{RecoverySet sincronizacao = First.funcaoPara;}
+{
+	try
+	{
+	    < PARA > id() <IGUAL > <VALOR_INTEIRO > < IN > <VALOR_INTEIRO >
+	  	  ( sentencas() )+
+	    <  SEGUINTE >
+	}
+	catch(ParseException e)
+	{
+	    consumeUntil(sincronizacao, e, "funcaoPara");
+	}
+}
+
+void funcaoEnquanto():
+{RecoverySet sincronizacao = First.funcaoEnquanto;}
+{
+ 	try
+ 	{ 
+	    < ENQUANTO >  condicao() <PONTOS >
+	  	  ( sentencas() )+
+	    < FIMBLOCO > <ENQUANTO >
+	}
+	catch(ParseException e)
+	{
+	  consumeUntil(sincronizacao, e, "funcaoEnquanto");
+	}
+}
+
+void funcaoFaca():
+{RecoverySet sincronizacao = First.funcaoFaca;}
+{
+	try
+	{
+	  	< FACA ><PONTOS >
+	  	 ( sentencas() )+
+	  	< FIMBLOCO >
+	  	< ENQUANTO > condicao() 
+	    < FIMBLOCO > <FACA >
+	}
+	catch(ParseException e)
+	{
+		consumeUntil(sincronizacao, e, "funcaoFaca");
+	} 
+}
+
